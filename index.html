@@ -293,11 +293,13 @@ function sendWA(sid){
   const todayBase = new Date(); todayBase.setHours(0,0,0,0);
   const sessaoBase = parseDS(s.date);
   const diffDias = Math.round((sessaoBase - todayBase) / (1000*60*60*24));
-  const quando = diffDias === 1 ? "amanhã" : `no dia *${dbr}* (${dn})`;
+  // Data curta sem ano: ex "13/06"
+  const dbrCurto = pad(sessaoBase.getDate()) + "/" + pad(sessaoBase.getMonth()+1);
+  const quando = diffDias === 1 ? "amanhã" : `${dn}, ${dbrCurto}`;
 
   const msg = temResp
-    ? `Olá, ${dest}! 😊\n\nPassando para lembrar da sessão de *${p.name}* ${quando}:\n\n📅 ${dn}, ${dbr}\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nPsi. Fernanda`
-    : `Olá, ${dest}! 😊\n\nPassando para lembrar da sua sessão ${quando}:\n\n📅 ${dn}, ${dbr}\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nPsi. Fernanda`;
+    ? `Olá, ${dest}! 😊\n\nPassando para lembrar da sessão de *${p.name}* ${quando}:\n\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nPsi. Fernanda`
+    : `Olá, ${dest}! 😊\n\nPassando para lembrar da sua sessão ${quando}:\n\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nPsi. Fernanda`;
   const phone=p.phone?p.phone.replace(/\D/g,""):"";
   const enc=encodeURIComponent(msg);
   window.open(phone?`https://wa.me/55${phone}?text=${enc}`:`https://wa.me/?text=${enc}`,"_blank");
