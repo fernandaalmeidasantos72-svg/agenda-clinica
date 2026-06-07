@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#667eea"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Agenda Clínica"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<title>Agenda Clínica</title>
+<link rel="manifest" href="manifest.json"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Nunito',sans-serif;background:#f0f4f8;color:#1a202c;overscroll-behavior:none;}
+button{font-family:'Nunito',sans-serif;}
+input,select,textarea{font-family:'Nunito',sans-serif;}
+textarea{resize:vertical;}
+.app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;}
+
+/* Header */
+.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:14px 18px;color:white;position:sticky;top:0;z-index:50;}
+.header h1{font-weight:800;font-size:19px;margin:0;}
+.header p{font-size:11px;opacity:0.8;margin:0;}
+
+/* Tabs */
+.tabs{display:flex;background:white;border-bottom:2px solid #e2e8f0;position:sticky;top:57px;z-index:40;}
+.tab-btn{flex:1;padding:11px 4px;border:none;background:none;cursor:pointer;font-weight:700;font-size:12px;color:#718096;border-bottom:3px solid transparent;transition:all 0.2s;}
+.tab-btn.active{color:#667eea;border-bottom:3px solid #667eea;}
+
+/* Content */
+.content{padding:14px;}
+
+/* View switcher */
+.view-switch{display:flex;background:white;border-radius:12px;padding:4px;margin-bottom:14px;gap:4px;box-shadow:0 1px 6px rgba(0,0,0,0.07);}
+.view-btn{flex:1;padding:8px 4px;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:13px;color:#718096;background:none;transition:all 0.2s;}
+.view-btn.active{background:linear-gradient(135deg,#667eea,#764ba2);color:white;}
+
+/* Nav bar */
+.nav-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.nav-btn{background:white;border:1px solid #e2e8f0;border-radius:10px;width:36px;height:36px;cursor:pointer;font-size:18px;font-weight:700;color:#2d3748;box-shadow:0 1px 4px rgba(0,0,0,0.08);}
+.nav-label{text-align:center;}
+.nav-label strong{font-weight:800;font-size:15px;display:block;}
+.nav-label small{font-size:11px;color:#667eea;cursor:pointer;font-weight:700;}
+
+/* Session card */
+.session-card{background:white;border-radius:14px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,0.07);}
+.session-header{padding:12px 14px;cursor:pointer;}
+.session-header.agendado{border-left:4px solid #b794f4;}
+.session-header.realizado{border-left:4px solid #68d391;}
+.session-header.faltou{border-left:4px solid #fc8181;}
+.session-row{display:flex;justify-content:space-between;align-items:center;}
+.session-name{font-weight:800;font-size:16px;}
+.session-meta{font-size:13px;color:#718096;margin-top:2px;}
+.status-badge{border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
+.status-badge.agendado{background:#e9d8fd;color:#553c9a;}
+.status-badge.realizado{background:#c6f6d5;color:#276749;}
+.status-badge.faltou{background:#fed7d7;color:#9b2c2c;}
+.session-body{padding:0 14px 14px;border-top:1px solid #f0f0f0;}
+.status-btns{display:flex;gap:6px;margin-top:12px;}
+.status-btn{flex:1;padding:7px 2px;border-radius:8px;border:none;cursor:pointer;font-weight:700;font-size:10px;background:#f7f8fa;color:#a0aec0;transition:all 0.15s;}
+.status-btn.agendado-active{background:#e9d8fd;color:#553c9a;}
+.status-btn.realizado-active{background:#c6f6d5;color:#276749;}
+.status-btn.faltou-active{background:#fed7d7;color:#9b2c2c;}
+.notes-area{width:100%;margin-top:10px;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;min-height:70px;outline:none;color:#2d3748;}
+.action-btns{display:flex;gap:8px;margin-top:8px;}
+.action-btn{flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;}
+.action-btn.move{background:#ebf4ff;color:#3182ce;}
+.action-btn.del{background:#fff5f5;color:#c53030;}
+.wa-btn{width:100%;margin-top:12px;background:#25D366;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;}
+
+/* Empty state */
+.empty{text-align:center;color:#a0aec0;padding:40px 0;background:white;border-radius:16px;}
+.empty-icon{font-size:40px;margin-bottom:8px;}
+.empty strong{display:block;font-weight:700;}
+.empty small{font-size:13px;margin-top:4px;display:block;}
+
+/* Week */
+.week-day{margin-bottom:16px;}
+.week-day-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.day-badge{border-radius:10px;padding:4px 10px;font-weight:800;font-size:13px;background:#e2e8f0;color:#4a5568;}
+.day-badge.today{background:linear-gradient(135deg,#667eea,#764ba2);color:white;}
+.no-sessions{color:#a0aec0;font-size:13px;padding:8px 12px;background:white;border-radius:10px;font-style:italic;}
+
+/* Month calendar */
+.cal-grid-header{display:grid;grid-template-columns:repeat(7,1fr);background:#667eea;}
+.cal-day-name{text-align:center;padding:7px 0;color:white;font-weight:700;font-size:11px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#e2e8f0;}
+.cal-cell{background:white;min-height:48px;padding:4px;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+.cal-cell.selected{background:#eef2ff;border:2px solid #667eea;}
+.cal-cell.empty{background:#f8f9fa;cursor:default;}
+.cal-num{font-weight:600;font-size:13px;color:#1a202c;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+.cal-num.today{background:#667eea;color:white;font-weight:800;}
+.cal-dot{font-size:9px;border-radius:4px;padding:1px 3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#2d3748;}
+.cal-dot.agendado{background:#e9d8fd;}
+.cal-dot.realizado{background:#c6f6d5;}
+.cal-dot.faltou{background:#fed7d7;}
+
+/* Add button */
+.add-btn{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;}
+.add-btn.small{padding:5px 10px;font-size:12px;}
+
+/* Patients */
+.patient-card{background:white;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.07);}
+.patient-row{display:flex;justify-content:space-between;align-items:flex-start;}
+.patient-name{font-weight:800;font-size:16px;}
+.patient-info{font-size:12px;color:#718096;margin-top:2px;}
+.patient-guardian{font-size:13px;color:#4a5568;margin-top:2px;}
+.patient-value{font-size:13px;color:#667eea;font-weight:700;margin-top:6px;}
+.delete-btn{background:#fff5f5;color:#c53030;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:700;font-size:12px;}
+
+/* Finance */
+.finance-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.total-card{background:linear-gradient(135deg,#667eea,#764ba2);border-radius:16px;padding:18px;color:white;margin-bottom:16px;text-align:center;}
+.total-label{font-size:12px;opacity:0.85;}
+.total-value{font-size:34px;font-weight:800;}
+.finance-card{background:white;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.07);}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;}
+.stat-box{border-radius:10px;padding:10px;text-align:center;}
+.stat-box .n{font-size:24px;font-weight:800;}
+.stat-box .l{font-size:11px;}
+.stat-box.green{background:#c6f6d5;}.stat-box.green .n,.stat-box.green .l{color:#276749;}
+.stat-box.red{background:#fed7d7;}.stat-box.red .n,.stat-box.red .l{color:#9b2c2c;}
+.stat-box.purple{background:#e9d8fd;}.stat-box.purple .n,.stat-box.purple .l{color:#553c9a;}
+.finance-totals{margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;}
+.finance-row{display:flex;justify-content:space-between;font-size:13px;font-weight:700;}
+.finance-row.green{color:#276749;}
+.finance-row.orange{color:#c05621;margin-top:4px;}
+.report-btn{background:#ebf4ff;color:#3182ce;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:700;font-size:11px;}
+
+/* Badges */
+.recurring-badge{background:#e9d8fd;color:#553c9a;font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;margin-left:6px;}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:1000;padding:16px;}
+.modal-box{background:white;border-radius:20px;padding:20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 -4px 30px rgba(0,0,0,0.15);}
+.modal-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.modal-title{font-weight:800;font-size:17px;}
+.modal-close{background:#f0f0f0;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:16px;}
+.form-group{margin-bottom:12px;}
+.form-label{display:block;font-weight:700;font-size:12px;color:#4a5568;margin-bottom:4px;}
+.form-input{width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid #e2e8f0;font-size:14px;outline:none;color:#1a202c;background:#fafafa;}
+.form-input:focus{border-color:#667eea;}
+.primary-btn{width:100%;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:12px;padding:13px;cursor:pointer;font-weight:800;font-size:15px;margin-top:4px;}
+
+/* Freq buttons */
+.freq-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.freq-btn{padding:10px 6px;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:12px;background:#f0f4f8;color:#4a5568;transition:all 0.2s;text-align:center;}
+.freq-btn.active{background:linear-gradient(135deg,#667eea,#764ba2);color:white;}
+.freq-btn small{font-size:10px;font-weight:400;opacity:0.8;display:block;margin-top:2px;}
+.freq-note{margin-top:8px;background:#fffbeb;border-radius:8px;padding:8px 10px;font-size:12px;color:#b7791f;font-weight:600;}
+
+/* Report */
+.report-pre{background:#f7f8fa;border-radius:10px;padding:14px;font-size:12px;white-space:pre-wrap;line-height:1.6;color:#2d3748;max-height:360px;overflow-y:auto;font-family:'Nunito',sans-serif;}
+.copy-btn{width:100%;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:12px;padding:13px;cursor:pointer;font-weight:800;font-size:15px;margin-top:14px;}
+
+/* Install banner */
+.install-banner{background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.install-banner p{font-size:12px;font-weight:700;flex:1;}
+.install-btn{background:white;color:#667eea;border:none;border-radius:8px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;}
+.install-close{background:none;border:none;color:white;font-size:18px;cursor:pointer;padding:0 4px;}
+
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.section-title{font-weight:800;font-size:17px;}
+.cal-hint{font-weight:700;color:#718096;font-size:13px;margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- Rendered by JS -->
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────
+const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const DAYS_FULL = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+function gid(){ return Math.random().toString(36).substr(2,9); }
+function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+function firstDayOfMonth(y,m){ return new Date(y,m,1).getDay(); }
+function toDS(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function parseDS(s){ const [y,m,d]=s.split("-"); return new Date(+y,+m-1,+d); }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function weekStart(d){ const r=new Date(d); r.setDate(r.getDate()-r.getDay()); return r; }
+function fmtDay(d){ return pad(d.getDate())+"/"+pad(d.getMonth()+1); }
+function fmtBR(ds){ return ds.split("-").reverse().join("/"); }
+
+// Storage
+function save(){ localStorage.setItem("ac_patients",JSON.stringify(state.patients)); localStorage.setItem("ac_sessions",JSON.stringify(state.sessions)); }
+function load(){ try{ state.patients=JSON.parse(localStorage.getItem("ac_patients")||"[]"); state.sessions=JSON.parse(localStorage.getItem("ac_sessions")||"[]"); }catch(e){} }
+
+const today = new Date(); today.setHours(0,0,0,0);
+
+const state = {
+  tab:"agenda", agendaView:"dia",
+  currentDate: new Date(today),
+  patients:[], sessions:[],
+  expandedSession:null,
+  showAddPatient:false, showSessionModal:false,
+  sessionModalDate: toDS(today),
+  sessionForm:{ patientId:"", time:"08:00", frequency:"avulso" },
+  newPatient:{ name:"", guardian:"", phone:"", sessionValue:"" },
+  showEditSession:null,
+  showReport:false, reportPatient:null,
+  financeMonth: today.getMonth(), financeYear: today.getFullYear(),
+  showInstall:true, deferredPrompt:null
+};
+load();
+
+// ── RECURRING ──
+function generateRecurring(patientId, startDate, time, frequency){
+  const start = parseDS(startDate);
+  const y=start.getFullYear(), m=start.getMonth();
+  const last = new Date(y,m+1,0);
+  const interval = frequency==="quinzenal"?14:7;
+  const arr=[];
+  let cur=new Date(start);
+  while(cur<=last){
+    arr.push({id:gid(),patientId,date:toDS(cur),time,notes:"",status:"agendado",recurring:frequency});
+    cur=addDays(cur,interval);
+  }
+  return arr;
+}
+
+// ── ACTIONS ──
+function setTab(t){ state.tab=t; render(); }
+function setView(v){ state.agendaView=v; render(); }
+function navDate(n){
+  if(state.agendaView==="dia") state.currentDate=addDays(state.currentDate,n);
+  else if(state.agendaView==="semana") state.currentDate=addDays(state.currentDate,n*7);
+  else { const r=new Date(state.currentDate); r.setMonth(r.getMonth()+n); state.currentDate=r; }
+  render();
+}
+function goToday(){ state.currentDate=new Date(today); render(); }
+function selectDay(ds){ state.currentDate=parseDS(ds); state.agendaView="dia"; render(); }
+
+function openSessionModal(ds){ state.sessionModalDate=ds; state.sessionForm={patientId:"",time:"08:00",frequency:"avulso"}; state.showSessionModal=true; render(); }
+function closeSessionModal(){ state.showSessionModal=false; render(); }
+function addSession(){
+  if(!state.sessionForm.patientId) return;
+  const f=state.sessionForm;
+  if(f.frequency==="avulso"){
+    state.sessions.push({id:gid(),patientId:f.patientId,date:state.sessionModalDate,time:f.time,notes:"",status:"agendado",recurring:"avulso"});
+  } else {
+    const arr=generateRecurring(f.patientId,state.sessionModalDate,f.time,f.frequency);
+    state.sessions.push(...arr);
+  }
+  save(); closeSessionModal();
+}
+
+function openAddPatient(){ state.newPatient={name:"",guardian:"",phone:"",sessionValue:""}; state.showAddPatient=true; render(); }
+function closeAddPatient(){ state.showAddPatient=false; render(); }
+function addPatient(){
+  const p=state.newPatient;
+  if(!p.name.trim()) return;
+  state.patients.push({...p,id:gid(),sessionValue:p.sessionValue||"0"});
+  save(); closeAddPatient();
+}
+function deletePatient(id){
+  if(!confirm("Excluir paciente e todas as sessões?")) return;
+  state.patients=state.patients.filter(p=>p.id!==id);
+  state.sessions=state.sessions.filter(s=>s.patientId!==id);
+  save(); render();
+}
+
+function toggleExpand(id){ state.expandedSession=state.expandedSession===id?null:id; render(); }
+function updateStatus(id,status){ state.sessions=state.sessions.map(s=>s.id===id?{...s,status}:s); save(); render(); }
+function updateNotes(id,val){ state.sessions=state.sessions.map(s=>s.id===id?{...s,notes:val}:s); save(); }
+function deleteSession(id){ state.sessions=state.sessions.filter(s=>s.id!==id); save(); render(); }
+function openEditSession(s){ state.showEditSession={...s,newDate:s.date}; render(); }
+function closeEditSession(){ state.showEditSession=null; render(); }
+function moveSession(){
+  const {id,newDate}=state.showEditSession;
+  state.sessions=state.sessions.map(s=>s.id===id?{...s,date:newDate}:s);
+  save(); closeEditSession();
+}
+
+function sendWA(sid){
+  const s=state.sessions.find(x=>x.id===sid);
+  const p=state.patients.find(x=>x.id===s.patientId);
+  if(!s||!p) return;
+  const sd=parseDS(s.date);
+  const dn=DAYS_FULL[sd.getDay()];
+  const dbr=fmtBR(s.date);
+  const pn=p.guardian?p.guardian.split(" ")[0]:"responsável";
+  const msg=`Olá, ${pn}! 😊\n\nPassando para lembrar da sessão de *${p.name}* amanhã:\n\n📅 ${dn}, ${dbr}\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nFernanda Almeida Santos\nPsicóloga — CRP 08/25722`;
+  const phone=p.phone?p.phone.replace(/\D/g,""):"";
+  const enc=encodeURIComponent(msg);
+  window.open(phone?`https://wa.me/55${phone}?text=${enc}`:`https://wa.me/?text=${enc}`,"_blank");
+}
+
+function openReport(pid){ state.reportPatient=pid; state.showReport=true; render(); }
+function closeReport(){ state.showReport=false; render(); }
+
+function generateReport(pid){
+  const p=state.patients.find(x=>x.id===pid);
+  const prefix=state.financeYear+"-"+pad(state.financeMonth+1);
+  const ps=state.sessions.filter(s=>s.patientId===pid&&s.date.startsWith(prefix));
+  const vieram=ps.filter(s=>s.status==="realizado");
+  const faltaram=ps.filter(s=>s.status==="faltou");
+  const val=parseFloat(p.sessionValue||0);
+  const total=vieram.length*val;
+  const devido=ps.filter(s=>s.status!=="faltou").length*val;
+  return `Relatório de Sessões — ${MONTHS_PT[state.financeMonth]}/${state.financeYear}\n\nPaciente: ${p.name}\n${p.guardian?"Responsável: "+p.guardian+"\n":""}\n✅ Sessões realizadas (${vieram.length}):\n${vieram.map(s=>"  • "+fmtBR(s.date)+" às "+s.time).join("\n")||"  Nenhuma"}\n\n❌ Faltas (${faltaram.length}):\n${faltaram.map(s=>"  • "+fmtBR(s.date)+" às "+s.time).join("\n")||"  Nenhuma"}\n\n💰 Valor por sessão: R$ ${val.toFixed(2)}\nTotal realizado: R$ ${total.toFixed(2)}\n${devido>total?"⚠️ Valor em aberto: R$ "+(devido-total).toFixed(2)+"\n":""}\nAtenciosamente,\nFernanda Almeida Santos — Psicóloga CRP 08/25722`;
+}
+
+function financeData(){
+  const prefix=state.financeYear+"-"+pad(state.financeMonth+1);
+  const ms=state.sessions.filter(s=>s.date.startsWith(prefix));
+  return state.patients.map(p=>{
+    const ps=ms.filter(s=>s.patientId===p.id);
+    const vieram=ps.filter(s=>s.status==="realizado").length;
+    const faltaram=ps.filter(s=>s.status==="faltou").length;
+    const agendados=ps.filter(s=>s.status==="agendado").length;
+    const val=parseFloat(p.sessionValue||0);
+    return {p,vieram,faltaram,agendados,total:vieram*val,devido:(vieram+agendados)*val};
+  }).filter(d=>d.vieram+d.faltaram+d.agendados>0);
+}
+
+function navFinance(n){
+  let m=state.financeMonth+n, y=state.financeYear;
+  if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+  state.financeMonth=m; state.financeYear=y; render();
+}
+
+// ── HTML HELPERS ──
+function e(tag,cls,html,attrs){
+  let a=""; if(attrs) for(const k in attrs) a+=` ${k}="${attrs[k]}"`;
+  return `<${tag} class="${cls||""}"${a}>${html||""}</${tag}>`;
+}
+function btn(cls,onclick,html){ return `<button class="${cls}" onclick="${onclick}">${html}</button>`; }
+
+function sessionCard(s){
+  const p=state.patients.find(x=>x.id===s.patientId); if(!p) return "";
+  const isExp=state.expandedSession===s.id;
+  const statusText={agendado:"📋 Agendado",realizado:"✅ Realizado",faltou:"❌ Faltou"};
+  const rb=s.recurring&&s.recurring!=="avulso"?`<span class="recurring-badge">🔁 ${s.recurring==="quinzenal"?"Quinzenal":"Semanal"}</span>`:"";
+  const guardian=p.guardian?` • Resp: ${p.guardian.split(" ")[0]}`:"";
+  let body="";
+  if(isExp){
+    const sb=(st,label)=>`<button class="status-btn ${s.status===st?st+"-active":""}" onclick="updateStatus('${s.id}','${st}')">${label}</button>`;
+    body=`<div class="session-body">
+      <button class="wa-btn" onclick="sendWA('${s.id}')">💬 Enviar lembrete no WhatsApp</button>
+      <div class="status-btns">${sb("agendado","📋 Agendado")}${sb("realizado","✅ Realizado")}${sb("faltou","❌ Faltou")}</div>
+      <textarea class="notes-area" placeholder="Anotações da sessão..." onchange="updateNotes('${s.id}',this.value)">${s.notes||""}</textarea>
+      <div class="action-btns">
+        <button class="action-btn move" onclick="openEditSession_${s.id}()">🗓 Mover dia</button>
+        <button class="action-btn del" onclick="deleteSession('${s.id}')">🗑 Excluir</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="session-card">
+    <div class="session-header ${s.status}" onclick="toggleExpand('${s.id}')">
+      <div class="session-row">
+        <div>
+          <div><span class="session-name">${p.name}</span>${rb}</div>
+          <div class="session-meta">🕐 ${s.time}${guardian}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:8px">
+          <span class="status-badge ${s.status}">${statusText[s.status]}</span>
+          <span style="font-size:11px;color:#a0aec0">${isExp?"▲":"▼"}</span>
+        </div>
+      </div>
+    </div>${body}</div>`;
+}
+
+// ── RENDER ──
+function render(){
+  const app=document.getElementById("app");
+
+  // Install banner
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone=window.matchMedia("(display-mode:standalone)").matches||window.navigator.standalone;
+  let installBanner="";
+  if(!isStandalone && state.showInstall){
+    if(isIOS){
+      installBanner=`<div class="install-banner"><p>📲 Instalar: toque em ⎙ compartilhar → "Adicionar à tela de início"</p><button class="install-close" onclick="state.showInstall=false;render()">✕</button></div>`;
+    } else if(state.deferredPrompt){
+      installBanner=`<div class="install-banner"><p>📲 Instale na tela inicial para usar offline!</p><button class="install-btn" onclick="installApp()">Instalar</button><button class="install-close" onclick="state.showInstall=false;render()">✕</button></div>`;
+    }
+  }
+
+  // Tabs
+  const tabs=["agenda","pacientes","financeiro"].map((t,i)=>{
+    const labels=["📅 Agenda","👥 Pacientes","💰 Financeiro"];
+    return `<button class="tab-btn${state.tab===t?" active":""}" onclick="setTab('${t}')">${labels[i]}</button>`;
+  }).join("");
+
+  let content="";
+
+  // ── AGENDA ──
+  if(state.tab==="agenda"){
+    const views=["dia","semana","mes"].map((v,i)=>{
+      const labels=["Dia","Semana","Mês"];
+      return `<button class="view-btn${state.agendaView===v?" active":""}" onclick="setView('${v}')">${labels[i]}</button>`;
+    }).join("");
+
+    // nav label
+    let navLabel="";
+    const isToday=toDS(state.currentDate)===toDS(today);
+    if(state.agendaView==="dia"){
+      const prefix=isToday?"Hoje — ":"";
+      navLabel=`<strong>${prefix}${DAYS_FULL[state.currentDate.getDay()]}, ${fmtDay(state.currentDate)}</strong>${!isToday?`<small onclick="goToday()">← Ir para hoje</small>`:""}`;
+    } else if(state.agendaView==="semana"){
+      const sw=weekStart(state.currentDate);
+      navLabel=`<strong>${fmtDay(sw)} – ${fmtDay(addDays(sw,6))}</strong>`;
+    } else {
+      navLabel=`<strong>${MONTHS_PT[state.currentDate.getMonth()]} ${state.currentDate.getFullYear()}</strong>`;
+    }
+
+    let main="";
+
+    if(state.agendaView==="dia"){
+      const ds=toDS(state.currentDate);
+      const daySessions=state.sessions.filter(s=>s.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
+      let cards=daySessions.map(s=>sessionCard(s)).join("");
+      if(!cards) cards=`<div class="empty"><div class="empty-icon">📭</div><strong>Nenhuma sessão hoje</strong><small>Toque em + Agendar para adicionar</small></div>`;
+      main=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:700;color:#718096;font-size:13px">${daySessions.length} sessão${daySessions.length!==1?"ões":""}</span>
+        <button class="add-btn" onclick="openSessionModal('${ds}')">+ Agendar</button>
+      </div>${cards}`;
+    }
+
+    else if(state.agendaView==="semana"){
+      const sw=weekStart(state.currentDate);
+      let rows="";
+      for(let i=0;i<7;i++){
+        const d=addDays(sw,i);
+        const ds=toDS(d);
+        const isTD=ds===toDS(today);
+        const daySessions=state.sessions.filter(s=>s.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
+        const cards=daySessions.map(s=>sessionCard(s)).join("")||`<div class="no-sessions">Sem sessões</div>`;
+        rows+=`<div class="week-day">
+          <div class="week-day-header">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="day-badge${isTD?" today":""}">${DAYS_PT[d.getDay()]} ${d.getDate()}</div>
+              ${isTD?`<span style="font-size:11px;color:#667eea;font-weight:700">Hoje</span>`:""}
+            </div>
+            <button class="add-btn small" onclick="openSessionModal('${ds}')">+</button>
+          </div>${cards}</div>`;
+      }
+      main=rows;
+    }
+
+    else {
+      // Month
+      const y=state.currentDate.getFullYear(), m=state.currentDate.getMonth();
+      const dim=daysInMonth(y,m), fd=firstDayOfMonth(y,m);
+      let cells="";
+      for(let i=0;i<fd;i++) cells+=`<div class="cal-cell empty"></div>`;
+      for(let d=1;d<=dim;d++){
+        const ds=y+"-"+pad(m+1)+"-"+pad(d);
+        const isTD=ds===toDS(today);
+        const isSel=toDS(state.currentDate)===ds;
+        const ds2=state.sessions.filter(s=>s.date===ds);
+        let dots=ds2.slice(0,2).map(s=>{
+          const p=state.patients.find(x=>x.id===s.patientId);
+          return p?`<div class="cal-dot ${s.status}">${p.name.split(" ")[0]}</div>`:"";
+        }).join("");
+        if(ds2.length>2) dots+=`<div style="font-size:9px;color:#718096">+${ds2.length-2}</div>`;
+        cells+=`<div class="cal-cell${isSel?" selected":""}" onclick="selectDay('${ds}')">
+          <div class="cal-num${isTD?" today":""}">${d}</div>${dots}</div>`;
+      }
+      main=`<div style="background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.07);margin-bottom:14px">
+        <div class="cal-grid-header">${DAYS_PT.map(d=>`<div class="cal-day-name">${d}</div>`).join("")}</div>
+        <div class="cal-grid">${cells}</div>
+      </div><div class="cal-hint">Toque em um dia para ver as sessões</div>`;
+    }
+
+    content=`<div class="view-switch">${views}</div>
+      <div class="nav-bar">
+        <button class="nav-btn" onclick="navDate(-1)">‹</button>
+        <div class="nav-label">${navLabel}</div>
+        <button class="nav-btn" onclick="navDate(1)">›</button>
+      </div>${main}`;
+  }
+
+  // ── PATIENTS ──
+  else if(state.tab==="pacientes"){
+    const cards=state.patients.map(p=>`<div class="patient-card">
+      <div class="patient-row">
+        <div>
+          <div class="patient-name">👤 ${p.name}</div>
+          ${p.guardian?`<div class="patient-guardian">👨‍👩‍👧 ${p.guardian}</div>`:""}
+          ${p.phone?`<div class="patient-info">📱 ${p.phone}</div>`:""}
+          <div class="patient-value">💰 R$ ${parseFloat(p.sessionValue||0).toFixed(2)} / sessão</div>
+        </div>
+        <button class="delete-btn" onclick="deletePatient('${p.id}')">Excluir</button>
+      </div>
+    </div>`).join("")||`<div class="empty" style="padding:40px"><strong>Nenhum paciente cadastrado</strong></div>`;
+    content=`<div class="section-header">
+      <span class="section-title">Pacientes (${state.patients.length})</span>
+      <button class="add-btn" onclick="openAddPatient()">+ Novo Paciente</button>
+    </div>${cards}`;
+  }
+
+  // ── FINANCE ──
+  else {
+    const fd2=financeData();
+    const total=fd2.reduce((a,b)=>a+b.total,0);
+    const cards=fd2.map(({p,vieram,faltaram,agendados,total:t,devido})=>`<div class="finance-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-weight:800;font-size:15px">👤 ${p.name}</div>
+          <div style="font-size:12px;color:#718096">R$ ${parseFloat(p.sessionValue||0).toFixed(2)}/sessão</div>
+        </div>
+        <button class="report-btn" onclick="openReport('${p.id}')">📄 Relatório</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box green"><div class="n">${vieram}</div><div class="l">Vieram</div></div>
+        <div class="stat-box red"><div class="n">${faltaram}</div><div class="l">Faltaram</div></div>
+        <div class="stat-box purple"><div class="n">${agendados}</div><div class="l">Agendados</div></div>
+      </div>
+      <div class="finance-totals">
+        <div class="finance-row green"><span>✅ Total recebido</span><span>R$ ${t.toFixed(2)}</span></div>
+        ${devido>t?`<div class="finance-row orange"><span>⚠️ Em aberto</span><span>R$ ${(devido-t).toFixed(2)}</span></div>`:""}
+      </div>
+    </div>`).join("")||`<div class="empty" style="padding:30px"><strong>Nenhuma sessão neste mês</strong></div>`;
+    content=`<div class="finance-header">
+      <button class="nav-btn" onclick="navFinance(-1)">‹</button>
+      <span style="font-weight:800;font-size:17px">${MONTHS_PT[state.financeMonth]} ${state.financeYear}</span>
+      <button class="nav-btn" onclick="navFinance(1)">›</button>
+    </div>
+    <div class="total-card"><div class="total-label">Total recebido no mês</div><div class="total-value">R$ ${total.toFixed(2)}</div></div>
+    ${cards}`;
+  }
+
+  // ── MODALS ──
+  let modals="";
+
+  if(state.showSessionModal){
+    const opts=state.patients.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
+    const freqs=[["avulso","📌 Avulso","sessão única"],["semanal","🔁 Semanal","toda semana"],["quinzenal","🔁 Quinzenal","a cada 2 sem."]];
+    const fbtns=freqs.map(([v,l,s])=>`<button class="freq-btn${state.sessionForm.frequency===v?" active":""}" onclick="state.sessionForm.frequency='${v}';render()">${l}<small>${s}</small></button>`).join("");
+    const note=state.sessionForm.frequency!=="avulso"?`<div class="freq-note">⚡ Vai agendar para todo o mês de ${MONTHS_PT[parseDS(state.sessionModalDate).getMonth()]}</div>`:"";
+    modals+=`<div class="modal-overlay" onclick="if(event.target===this)closeSessionModal()">
+      <div class="modal-box">
+        <div class="modal-title-row"><span class="modal-title">Agendar Sessão</span><button class="modal-close" onclick="closeSessionModal()">✕</button></div>
+        <div class="form-group"><label class="form-label">Data de início</label><input type="date" class="form-input" value="${state.sessionModalDate}" onchange="state.sessionModalDate=this.value;render()"/></div>
+        <div class="form-group"><label class="form-label">Paciente</label><select class="form-input" onchange="state.sessionForm.patientId=this.value"><option value="">Selecione...</option>${opts}</select></div>
+        <div class="form-group"><label class="form-label">Horário</label><input type="time" class="form-input" value="${state.sessionForm.time}" onchange="state.sessionForm.time=this.value"/></div>
+        <div class="form-group"><label class="form-label">Frequência</label><div class="freq-grid">${fbtns}</div>${note}</div>
+        <button class="primary-btn" onclick="addSession()">${state.sessionForm.frequency==="avulso"?"Agendar":"Agendar para o mês inteiro"}</button>
+      </div></div>`;
+  }
+
+  if(state.showAddPatient){
+    modals+=`<div class="modal-overlay" onclick="if(event.target===this)closeAddPatient()">
+      <div class="modal-box">
+        <div class="modal-title-row"><span class="modal-title">Novo Paciente</span><button class="modal-close" onclick="closeAddPatient()">✕</button></div>
+        <div class="form-group"><label class="form-label">Nome do paciente *</label><input class="form-input" placeholder="Nome completo" oninput="state.newPatient.name=this.value"/></div>
+        <div class="form-group"><label class="form-label">Nome dos pais / responsável</label><input class="form-input" placeholder="Nome completo dos pais" oninput="state.newPatient.guardian=this.value"/></div>
+        <div class="form-group"><label class="form-label">WhatsApp dos pais</label><input class="form-input" placeholder="(00) 00000-0000" oninput="state.newPatient.phone=this.value"/></div>
+        <div class="form-group"><label class="form-label">Valor da sessão (R$)</label><input type="number" class="form-input" placeholder="Ex: 150.00" oninput="state.newPatient.sessionValue=this.value"/></div>
+        <button class="primary-btn" onclick="addPatient()">Cadastrar Paciente</button>
+      </div></div>`;
+  }
+
+  if(state.showEditSession){
+    const s=state.showEditSession;
+    const pname=state.patients.find(x=>x.id===s.patientId)?.name||"";
+    modals+=`<div class="modal-overlay" onclick="if(event.target===this)closeEditSession()">
+      <div class="modal-box">
+        <div class="modal-title-row"><span class="modal-title">Mover Sessão</span><button class="modal-close" onclick="closeEditSession()">✕</button></div>
+        <div style="font-weight:700;margin-bottom:4px">${pname}</div>
+        <div style="color:#718096;font-size:13px;margin-bottom:14px">Data atual: ${fmtBR(s.date)}</div>
+        <div class="form-group"><label class="form-label">Nova data</label><input type="date" class="form-input" value="${s.newDate}" onchange="state.showEditSession.newDate=this.value"/></div>
+        <button class="primary-btn" style="margin-top:16px" onclick="moveSession()">Confirmar</button>
+      </div></div>`;
+  }
+
+  if(state.showReport && state.reportPatient){
+    const report=generateReport(state.reportPatient);
+    const escaped=report.replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    modals+=`<div class="modal-overlay" onclick="if(event.target===this)closeReport()">
+      <div class="modal-box">
+        <div class="modal-title-row"><span class="modal-title">Relatório</span><button class="modal-close" onclick="closeReport()">✕</button></div>
+        <pre class="report-pre">${escaped}</pre>
+        <button class="copy-btn" onclick="copyReport()">📋 Copiar para WhatsApp</button>
+      </div></div>`;
+  }
+
+  // Register edit session openers (needed because of dynamic IDs)
+  let editFns="";
+  state.sessions.forEach(s=>{
+    editFns+=`function openEditSession_${s.id}(){ state.showEditSession={...${JSON.stringify(s)},newDate:'${s.date}'}; render(); }\n`;
+  });
+
+  app.innerHTML=`
+    ${installBanner}
+    <div class="header"><h1>🧠 Agenda Clínica</h1><p>Fernanda Almeida Santos — CRP 08/25722</p></div>
+    <div class="tabs">${tabs}</div>
+    <div class="content">${content}</div>
+    ${modals}
+    <script>${editFns}<\/script>`;
+}
+
+function copyReport(){
+  const p=state.reportPatient;
+  if(!p) return;
+  const text=generateReport(p);
+  navigator.clipboard?.writeText(text).then(()=>alert("Copiado! Cole no WhatsApp ou e-mail.")).catch(()=>alert("Selecione o texto acima e copie manualmente."));
+}
+
+function installApp(){
+  if(state.deferredPrompt){
+    state.deferredPrompt.prompt();
+    state.deferredPrompt.userChoice.then(()=>{ state.deferredPrompt=null; state.showInstall=false; render(); });
+  }
+}
+
+// PWA install prompt
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); state.deferredPrompt=e; render(); });
+window.addEventListener("appinstalled",()=>{ state.showInstall=false; render(); });
+
+render();
+</script>
+
+<!-- PWA Service Worker -->
+<script>
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+</script>
+</body>
+</html>
