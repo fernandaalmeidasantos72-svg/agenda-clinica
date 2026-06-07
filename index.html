@@ -285,8 +285,20 @@ function sendWA(sid){
   const sd=parseDS(s.date);
   const dn=DAYS_FULL[sd.getDay()];
   const dbr=fmtBR(s.date);
-  const pn=p.guardian?p.guardian.split(" ")[0]:"responsável";
-  const msg=`Olá, ${pn}! 😊\n\nPassando para lembrar da sessão de *${p.name}* amanhã:\n\n📅 ${dn}, ${dbr}\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nFernanda Almeida Santos\nPsicóloga — CRP 08/25722`;
+  // Se tem responsável, usa o primeiro nome do responsável; senão usa o nome do paciente
+  const pn = p.guardian ? p.guardian.split(" ")[0] : p.name.split(" ")[0];
+  const isAdult = !p.guardian;
+
+  // Só fala "amanhã" se a sessão for realmente no dia seguinte
+  const todayMs = new Date(); todayMs.setHours(0,0,0,0);
+  const sessionMs = parseDS(s.date);
+  const diffDays = Math.round((sessionMs - todayMs) / (1000*60*60*24));
+  const whenStr = diffDays === 1 ? "amanhã" : `no dia ${dbr} (${dn})`;
+
+  // Mensagem diferente para adulto vs criança
+  const msg = isAdult
+    ? `Olá, ${pn}! 😊\n\nPassando para lembrar da sua sessão ${whenStr}:\n\n📅 ${dn}, ${dbr}\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nFernanda Almeida Santos\nPsicóloga — CRP 08/25722`
+    : `Olá, ${pn}! 😊\n\nPassando para lembrar da sessão de *${p.name}* ${whenStr}:\n\n📅 ${dn}, ${dbr}\n🕐 ${s.time}h\n\nQualquer dúvida, estou à disposição!\n\nFernanda Almeida Santos\nPsicóloga — CRP 08/25722`;
   const phone=p.phone?p.phone.replace(/\D/g,""):"";
   const enc=encodeURIComponent(msg);
   window.open(phone?`https://wa.me/55${phone}?text=${enc}`:`https://wa.me/?text=${enc}`,"_blank");
