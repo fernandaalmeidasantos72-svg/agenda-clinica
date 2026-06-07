@@ -1,0 +1,526 @@
+import { useState, useMemo } from "react";
+
+const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const DAYS_FULL = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+function generateId() { return Math.random().toString(36).substr(2,9); }
+function getDaysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+function getFirstDay(y,m){ return new Date(y,m,1).getDay(); }
+function toDateStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function parseDate(s){ const [y,m,d]=s.split("-"); return new Date(+y,+m-1,+d); }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function startOfWeek(d){ const r=new Date(d); r.setDate(r.getDate()-r.getDay()); return r; }
+function fmtDay(d){ return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`; }
+function fmtBR(ds){ return ds.split("-").reverse().join("/"); }
+
+// Gera sessões recorrentes para o mês inteiro
+function generateRecurringSessions(patientId, startDate, time, frequency) {
+  // frequency: "semanal" | "quinzenal"
+  const start = parseDate(startDate);
+  const year = start.getFullYear();
+  const month = start.getMonth();
+  const lastDay = new Date(year, month+1, 0);
+  const sessions = [];
+  let current = new Date(start);
+  const interval = frequency === "quinzenal" ? 14 : 7;
+  while (current <= lastDay) {
+    sessions.push({
+      id: generateId(),
+      patientId,
+      date: toDateStr(current),
+      time,
+      notes: "",
+      status: "agendado",
+      recurring: frequency
+    });
+    current = addDays(current, interval);
+  }
+  return sessions;
+}
+
+export default function App() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const [tab, setTab] = useState("agenda");
+  const [agendaView, setAgendaView] = useState("dia");
+  const [currentDate, setCurrentDate] = useState(today);
+
+  const [patients, setPatients] = useState([]);
+  const [sessions, setSessions] = useState([]);
+
+  // Modals
+  const [showAddPatient, setShowAddPatient] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [sessionModalDate, setSessionModalDate] = useState(toDateStr(today));
+  const [showEditSession, setShowEditSession] = useState(null);
+  const [showReport, setShowReport] = useState(false);
+  const [reportPatient, setReportPatient] = useState(null);
+  const [expandedSession, setExpandedSession] = useState(null);
+  const [showReminderPreview, setShowReminderPreview] = useState(null);
+
+  // Forms
+  const [newPatient, setNewPatient] = useState({ name:"", guardian:"", phone:"", sessionValue:"" });
+  const [sessionForm, setSessionForm] = useState({ patientId:"", time:"08:00", notes:"", frequency:"avulso" });
+
+  // Finance
+  const [financeMonth, setFinanceMonth] = useState(today.getMonth());
+  const [financeYear, setFinanceYear] = useState(today.getFullYear());
+
+  // helpers
+  function sessionsOn(ds){ return sessions.filter(s=>s.date===ds); }
+  function patientById(id){ return patients.find(p=>p.id===id); }
+
+  function addPatient(){
+    if(!newPatient.name.trim()) return;
+    setPatients(prev=>[...prev,{...newPatient,id:generateId(),sessionValue:newPatient.sessionValue||"0"}]);
+    setNewPatient({name:"",guardian:"",phone:"",sessionValue:""});
+    setShowAddPatient(false);
+  }
+
+  function deletePatient(id){
+    if(window.confirm("Excluir paciente e todas as sessões?")){ 
+      setPatients(p=>p.filter(x=>x.id!==id));
+      setSessions(s=>s.filter(x=>x.patientId!==id));
+    }
+  }
+
+  function addSession(){
+    if(!sessionForm.patientId) return;
+    if(sessionForm.frequency === "avulso"){
+      setSessions(prev=>[...prev,{
+        id:generateId(), patientId:sessionForm.patientId,
+        date:sessionModalDate, time:sessionForm.time, notes:"", status:"agendado", recurring:"avulso"
+      }]);
+    } else {
+      const recurring = generateRecurringSessions(sessionForm.patientId, sessionModalDate, sessionForm.time, sessionForm.frequency);
+      setSessions(prev=>[...prev,...recurring]);
+    }
+    setSessionForm({patientId:"",time:"08:00",notes:"",frequency:"avulso"});
+    setShowSessionModal(false);
+  }
+
+  function deleteSession(id){ setSessions(p=>p.filter(s=>s.id!==id)); }
+  function updateStatus(id,status){ setSessions(p=>p.map(s=>s.id===id?{...s,status}:s)); }
+  function updateNotes(id,notes){ setSessions(p=>p.map(s=>s.id===id?{...s,notes}:s)); }
+  function moveSession(id,newDate){ setSessions(p=>p.map(s=>s.id===id?{...s,date:newDate}:s)); setShowEditSession(null); }
+
+  // WhatsApp lembrete
+  function sendWhatsAppReminder(session, patient){
+    const sessionDate = parseDate(session.date);
+    const dayName = DAYS_FULL[sessionDate.getDay()];
+    const dateBR = fmtBR(session.date);
+    const parentName = patient.guardian ? patient.guardian.split(" ")[0] : "responsável";
+    const msg = `Olá, ${parentName}! 😊\n\nPassando para lembrar da sessão de *${patient.name}* amanhã:\n\n📅 ${dayName}, ${dateBR}\n🕐 ${session.time}h\n\nQualquer dúvida, estou à disposição!\n\nFernanda Almeida Santos\nPsicóloga — CRP 08/25722`;
+    const phone = patient.phone ? patient.phone.replace(/\D/g,"") : "";
+    const encoded = encodeURIComponent(msg);
+    if(phone){
+      window.open(`https://wa.me/55${phone}?text=${encoded}`, "_blank");
+    } else {
+      window.open(`https://wa.me/?text=${encoded}`, "_blank");
+    }
+  }
+
+  // Finance
+  function financeData(){
+    const prefix=`${financeYear}-${String(financeMonth+1).padStart(2,"0")}`;
+    const ms=sessions.filter(s=>s.date.startsWith(prefix));
+    return patients.map(p=>{
+      const ps=ms.filter(s=>s.patientId===p.id);
+      const vieram=ps.filter(s=>s.status==="realizado").length;
+      const faltaram=ps.filter(s=>s.status==="faltou").length;
+      const agendados=ps.filter(s=>s.status==="agendado").length;
+      const val=parseFloat(p.sessionValue||0);
+      return {patient:p,vieram,faltaram,agendados,total:vieram*val,devido:(vieram+agendados)*val};
+    }).filter(d=>d.vieram+d.faltaram+d.agendados>0);
+  }
+
+  function generateReport(patient){
+    const prefix=`${financeYear}-${String(financeMonth+1).padStart(2,"0")}`;
+    const ps=sessions.filter(s=>s.patientId===patient.id&&s.date.startsWith(prefix));
+    const vieram=ps.filter(s=>s.status==="realizado");
+    const faltaram=ps.filter(s=>s.status==="faltou");
+    const val=parseFloat(patient.sessionValue||0);
+    const total=vieram.length*val;
+    const devido=ps.filter(s=>s.status!=="faltou").length*val;
+    return `Relatório de Sessões — ${MONTHS_PT[financeMonth]}/${financeYear}\n\nPaciente: ${patient.name}\n${patient.guardian?`Responsável: ${patient.guardian}\n`:""}\n✅ Sessões realizadas (${vieram.length}):\n${vieram.map(s=>`  • ${fmtBR(s.date)} às ${s.time}`).join("\n")||"  Nenhuma"}\n\n❌ Faltas (${faltaram.length}):\n${faltaram.map(s=>`  • ${fmtBR(s.date)} às ${s.time}`).join("\n")||"  Nenhuma"}\n\n💰 Valor por sessão: R$ ${val.toFixed(2)}\nTotal realizado: R$ ${total.toFixed(2)}\n${devido>total?`⚠️ Valor em aberto: R$ ${(devido-total).toFixed(2)}\n`:""}\nAtenciosamente,\nFernanda Almeida Santos — Psicóloga CRP 08/25722`;
+  }
+
+  // Nav
+  const isToday = toDateStr(currentDate) === toDateStr(today);
+  function navDate(n){
+    if(agendaView==="dia") setCurrentDate(d=>addDays(d,n));
+    else if(agendaView==="semana") setCurrentDate(d=>addDays(d,n*7));
+    else setCurrentDate(d=>{ const r=new Date(d); r.setMonth(r.getMonth()+n); return r; });
+  }
+  function navLabel(){
+    if(agendaView==="dia"){
+      const prefix=isToday?"Hoje — ":"";
+      return `${prefix}${DAYS_FULL[currentDate.getDay()]}, ${fmtDay(currentDate)}`;
+    }
+    if(agendaView==="semana"){
+      const sw=startOfWeek(currentDate);
+      return `${fmtDay(sw)} – ${fmtDay(addDays(sw,6))}`;
+    }
+    return `${MONTHS_PT[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+  }
+
+  // Recurring badge
+  function RecurringBadge({type}){
+    if(!type||type==="avulso") return null;
+    return <span style={{background:"#e9d8fd",color:"#553c9a",fontSize:10,fontWeight:700,borderRadius:6,padding:"2px 6px",marginLeft:6}}>{type==="quinzenal"?"🔁 Quinzenal":"🔁 Semanal"}</span>;
+  }
+
+  // Session Card
+  function SessionCard({s, showDate=false}){
+    const p=patientById(s.patientId); if(!p) return null;
+    const isExp=expandedSession===s.id;
+    const statusColor={ agendado:"#e9d8fd", realizado:"#c6f6d5", faltou:"#fed7d7" };
+    const statusText={ agendado:"📋 Agendado", realizado:"✅ Realizado", faltou:"❌ Faltou" };
+    const borderCol={ agendado:"#b794f4", realizado:"#68d391", faltou:"#fc8181" };
+    return (
+      <div style={{background:"white",borderRadius:14,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 8px rgba(0,0,0,0.07)"}}>
+        <div onClick={()=>setExpandedSession(isExp?null:s.id)}
+          style={{padding:"12px 14px",cursor:"pointer",borderLeft:`4px solid ${borderCol[s.status]}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+                <span style={{fontWeight:800,fontSize:16}}>{p.name}</span>
+                <RecurringBadge type={s.recurring}/>
+              </div>
+              {showDate && <div style={{fontSize:12,color:"#718096"}}>{fmtBR(s.date)}</div>}
+              <div style={{fontSize:13,color:"#718096",marginTop:2}}>
+                🕐 {s.time}{p.guardian?` • Resp: ${p.guardian.split(" ")[0]}`:""}</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,marginLeft:8}}>
+              <span style={{background:statusColor[s.status],borderRadius:8,padding:"3px 8px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{statusText[s.status]}</span>
+              <span style={{fontSize:11,color:"#a0aec0"}}>{isExp?"▲":"▼"}</span>
+            </div>
+          </div>
+        </div>
+        {isExp && (
+          <div style={{padding:"0 14px 14px",borderTop:"1px solid #f0f0f0"}}>
+            {/* WhatsApp */}
+            <button onClick={()=>sendWhatsAppReminder(s,p)}
+              style={{width:"100%",marginTop:12,background:"#25D366",color:"white",border:"none",borderRadius:10,padding:"10px",cursor:"pointer",fontWeight:800,fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span style={{fontSize:16}}>💬</span> Enviar lembrete no WhatsApp
+            </button>
+            {/* Status */}
+            <div style={{display:"flex",gap:6,marginTop:10}}>
+              {[["agendado","📋 Agendado","#e9d8fd","#553c9a"],["realizado","✅ Realizado","#c6f6d5","#276749"],["faltou","❌ Faltou","#fed7d7","#9b2c2c"]].map(([st,label,bg,col])=>(
+                <button key={st} onClick={()=>updateStatus(s.id,st)} style={{flex:1,padding:"7px 2px",borderRadius:8,border:"none",cursor:"pointer",background:s.status===st?bg:"#f7f8fa",color:s.status===st?col:"#a0aec0",fontWeight:700,fontSize:10,fontFamily:"inherit",transition:"all 0.15s"}}>{label}</button>
+              ))}
+            </div>
+            {/* Notes */}
+            <textarea placeholder="Anotações da sessão (o que foi realizado)..." value={s.notes} onChange={e=>updateNotes(s.id,e.target.value)}
+              style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontFamily:"inherit",fontSize:12,resize:"vertical",minHeight:70,boxSizing:"border-box",outline:"none"}}/>
+            {/* Actions */}
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button onClick={()=>setShowEditSession(s)} style={{flex:1,background:"#ebf4ff",color:"#3182ce",border:"none",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"inherit"}}>🗓 Mover dia</button>
+              <button onClick={()=>deleteSession(s.id)} style={{flex:1,background:"#fff5f5",color:"#c53030",border:"none",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"inherit"}}>🗑 Excluir</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const fd=financeData();
+  const totalRec=fd.reduce((a,b)=>a+b.total,0);
+  const weekStart=startOfWeek(currentDate);
+  const weekDays=Array.from({length:7},(_,i)=>addDays(weekStart,i));
+  const mYear=currentDate.getFullYear(), mMonth=currentDate.getMonth();
+  const daysInM=getDaysInMonth(mYear,mMonth);
+  const firstD=getFirstDay(mYear,mMonth);
+  const calCells=[...Array(firstD).fill(null),...Array.from({length:daysInM},(_,i)=>i+1)];
+
+  return (
+    <div style={{fontFamily:"'Nunito',sans-serif",minHeight:"100vh",background:"#f0f4f8",color:"#1a202c",maxWidth:480,margin:"0 auto"}}>
+      <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,#667eea 0%,#764ba2 100%)",padding:"14px 18px",color:"white",position:"sticky",top:0,zIndex:50}}>
+        <div style={{fontWeight:800,fontSize:19}}>🧠 Agenda Clínica</div>
+        <div style={{fontSize:11,opacity:0.8}}>Fernanda Almeida Santos — CRP 08/25722</div>
+      </div>
+
+      {/* Main tabs */}
+      <div style={{display:"flex",background:"white",borderBottom:"2px solid #e2e8f0",position:"sticky",top:57,zIndex:40}}>
+        {[["agenda","📅 Agenda"],["pacientes","👥 Pacientes"],["financeiro","💰 Financeiro"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"11px 4px",border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,color:tab===id?"#667eea":"#718096",borderBottom:tab===id?"3px solid #667eea":"3px solid transparent",transition:"all 0.2s"}}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{padding:14}}>
+
+      {/* ══ AGENDA ══ */}
+      {tab==="agenda" && (<>
+        <div style={{display:"flex",background:"white",borderRadius:12,padding:4,marginBottom:14,gap:4,boxShadow:"0 1px 6px rgba(0,0,0,0.07)"}}>
+          {[["dia","Dia"],["semana","Semana"],["mes","Mês"]].map(([v,label])=>(
+            <button key={v} onClick={()=>setAgendaView(v)} style={{flex:1,padding:"8px 4px",border:"none",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,background:agendaView===v?"linear-gradient(135deg,#667eea,#764ba2)":"none",color:agendaView===v?"white":"#718096",transition:"all 0.2s"}}>{label}</button>
+          ))}
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <button onClick={()=>navDate(-1)} style={navBtn}>‹</button>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontWeight:800,fontSize:15}}>{navLabel()}</div>
+            {!isToday && agendaView==="dia" && (
+              <button onClick={()=>setCurrentDate(today)} style={{fontSize:11,color:"#667eea",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>← Ir para hoje</button>
+            )}
+          </div>
+          <button onClick={()=>navDate(1)} style={navBtn}>›</button>
+        </div>
+
+        {/* DIA */}
+        {agendaView==="dia" && (()=>{
+          const ds=toDateStr(currentDate);
+          const daySessions=sessionsOn(ds).sort((a,b)=>a.time.localeCompare(b.time));
+          return (
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <span style={{fontWeight:700,color:"#718096",fontSize:13}}>{daySessions.length} sessão{daySessions.length!==1?"ões":""}</span>
+                <button onClick={()=>{setSessionModalDate(ds);setShowSessionModal(true);}} style={addBtn}>+ Agendar</button>
+              </div>
+              {daySessions.length===0?(
+                <div style={{textAlign:"center",color:"#a0aec0",padding:"40px 0",background:"white",borderRadius:16}}>
+                  <div style={{fontSize:40,marginBottom:8}}>📭</div>
+                  <div style={{fontWeight:700}}>Nenhuma sessão hoje</div>
+                  <div style={{fontSize:13,marginTop:4}}>Toque em + Agendar para adicionar</div>
+                </div>
+              ):daySessions.map(s=><SessionCard key={s.id} s={s}/>)}
+            </div>
+          );
+        })()}
+
+        {/* SEMANA */}
+        {agendaView==="semana" && weekDays.map(d=>{
+          const ds=toDateStr(d);
+          const daySessions=sessionsOn(ds).sort((a,b)=>a.time.localeCompare(b.time));
+          const isTD=ds===toDateStr(today);
+          return (
+            <div key={ds} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{background:isTD?"linear-gradient(135deg,#667eea,#764ba2)":"#e2e8f0",color:isTD?"white":"#4a5568",borderRadius:10,padding:"4px 10px",fontWeight:800,fontSize:13}}>
+                    {DAYS_PT[d.getDay()]} {d.getDate()}
+                  </div>
+                  {isTD&&<span style={{fontSize:11,color:"#667eea",fontWeight:700}}>Hoje</span>}
+                </div>
+                <button onClick={()=>{setSessionModalDate(ds);setShowSessionModal(true);}} style={{...addBtn,padding:"5px 10px",fontSize:12}}>+</button>
+              </div>
+              {daySessions.length===0
+                ?<div style={{color:"#a0aec0",fontSize:13,padding:"8px 12px",background:"white",borderRadius:10,fontStyle:"italic"}}>Sem sessões</div>
+                :daySessions.map(s=><SessionCard key={s.id} s={s}/>)}
+            </div>
+          );
+        })}
+
+        {/* MÊS */}
+        {agendaView==="mes" && (
+          <div>
+            <div style={{background:"white",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.07)",marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:"#667eea"}}>
+                {DAYS_PT.map(d=><div key={d} style={{textAlign:"center",padding:"7px 0",color:"white",fontWeight:700,fontSize:11}}>{d}</div>)}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"#e2e8f0"}}>
+                {calCells.map((day,i)=>{
+                  if(!day) return <div key={i} style={{background:"#f8f9fa",minHeight:48}}/>;
+                  const ds=`${mYear}-${String(mMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                  const isTD=ds===toDateStr(today);
+                  const dayS=sessionsOn(ds);
+                  const sel=toDateStr(currentDate)===ds;
+                  return (
+                    <div key={i} onClick={()=>{setCurrentDate(parseDate(ds));setAgendaView("dia");}}
+                      style={{background:sel?"#eef2ff":"white",minHeight:48,padding:4,cursor:"pointer",border:sel?"2px solid #667eea":"2px solid transparent"}}>
+                      <div style={{fontWeight:isTD?800:600,fontSize:13,background:isTD?"#667eea":"transparent",color:isTD?"white":"#1a202c",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center"}}>{day}</div>
+                      {dayS.slice(0,2).map(s=>{
+                        const p=patientById(s.patientId);
+                        return p?<div key={s.id} style={{fontSize:9,background:s.status==="realizado"?"#c6f6d5":s.status==="faltou"?"#fed7d7":"#e9d8fd",borderRadius:4,padding:"1px 3px",marginTop:2,color:"#2d3748",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name.split(" ")[0]}</div>:null;
+                      })}
+                      {dayS.length>2&&<div style={{fontSize:9,color:"#718096"}}>+{dayS.length-2}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{fontWeight:700,color:"#718096",fontSize:13}}>Toque em um dia para ver as sessões</div>
+          </div>
+        )}
+      </>)}
+
+      {/* ══ PACIENTES ══ */}
+      {tab==="pacientes" && (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <span style={{fontWeight:800,fontSize:17}}>Pacientes ({patients.length})</span>
+            <button onClick={()=>setShowAddPatient(true)} style={addBtn}>+ Novo Paciente</button>
+          </div>
+          {patients.length===0&&<div style={{textAlign:"center",color:"#a0aec0",padding:40,background:"white",borderRadius:16}}>Nenhum paciente cadastrado</div>}
+          {patients.map(p=>(
+            <div key={p.id} style={{background:"white",borderRadius:14,padding:14,marginBottom:10,boxShadow:"0 1px 6px rgba(0,0,0,0.07)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:16}}>👤 {p.name}</div>
+                  {p.guardian&&<div style={{fontSize:13,color:"#4a5568",marginTop:2}}>👨‍👩‍👧 {p.guardian}</div>}
+                  {p.phone&&<div style={{fontSize:12,color:"#718096",marginTop:2}}>📱 {p.phone}</div>}
+                  <div style={{fontSize:13,color:"#667eea",fontWeight:700,marginTop:6}}>💰 R$ {parseFloat(p.sessionValue||0).toFixed(2)} / sessão</div>
+                </div>
+                <button onClick={()=>deletePatient(p.id)} style={{background:"#fff5f5",color:"#c53030",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"inherit"}}>Excluir</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ══ FINANCEIRO ══ */}
+      {tab==="financeiro" && (
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <button onClick={()=>{ if(financeMonth===0){setFinanceMonth(11);setFinanceYear(y=>y-1);}else setFinanceMonth(m=>m-1); }} style={navBtn}>‹</button>
+            <span style={{fontWeight:800,fontSize:17}}>{MONTHS_PT[financeMonth]} {financeYear}</span>
+            <button onClick={()=>{ if(financeMonth===11){setFinanceMonth(0);setFinanceYear(y=>y+1);}else setFinanceMonth(m=>m+1); }} style={navBtn}>›</button>
+          </div>
+          <div style={{background:"linear-gradient(135deg,#667eea,#764ba2)",borderRadius:16,padding:18,color:"white",marginBottom:16,textAlign:"center"}}>
+            <div style={{fontSize:12,opacity:0.85}}>Total recebido no mês</div>
+            <div style={{fontSize:34,fontWeight:800}}>R$ {totalRec.toFixed(2)}</div>
+          </div>
+          {fd.length===0&&<div style={{textAlign:"center",color:"#a0aec0",padding:30,background:"white",borderRadius:16}}>Nenhuma sessão neste mês</div>}
+          {fd.map(({patient:p,vieram,faltaram,agendados,total,devido})=>(
+            <div key={p.id} style={{background:"white",borderRadius:14,padding:14,marginBottom:10,boxShadow:"0 1px 6px rgba(0,0,0,0.07)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:15}}>👤 {p.name}</div>
+                  <div style={{fontSize:12,color:"#718096"}}>R$ {parseFloat(p.sessionValue||0).toFixed(2)}/sessão</div>
+                </div>
+                <button onClick={()=>{setReportPatient(p);setShowReport(true);}} style={{background:"#ebf4ff",color:"#3182ce",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontWeight:700,fontSize:11,fontFamily:"inherit"}}>📄 Relatório</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:12}}>
+                {[["#c6f6d5","#276749",vieram,"Vieram"],["#fed7d7","#9b2c2c",faltaram,"Faltaram"],["#e9d8fd","#553c9a",agendados,"Agendados"]].map(([bg,col,n,label])=>(
+                  <div key={label} style={{background:bg,borderRadius:10,padding:10,textAlign:"center"}}>
+                    <div style={{fontSize:24,fontWeight:800,color:col}}>{n}</div>
+                    <div style={{fontSize:11,color:col}}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #f0f0f0"}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
+                  <span style={{color:"#276749"}}>✅ Total recebido</span>
+                  <span style={{color:"#276749"}}>R$ {total.toFixed(2)}</span>
+                </div>
+                {devido>total&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700,marginTop:4}}>
+                  <span style={{color:"#c05621"}}>⚠️ Em aberto</span>
+                  <span style={{color:"#c05621"}}>R$ {(devido-total).toFixed(2)}</span>
+                </div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      </div>
+
+      {/* ── MODAL: Agendar ── */}
+      {showSessionModal&&(
+        <Modal onClose={()=>setShowSessionModal(false)} title="Agendar Sessão">
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Data de início</label>
+            <input type="date" value={sessionModalDate} onChange={e=>setSessionModalDate(e.target.value)} style={inp}/>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Paciente</label>
+            <select value={sessionForm.patientId} onChange={e=>setSessionForm(f=>({...f,patientId:e.target.value}))} style={inp}>
+              <option value="">Selecione...</option>
+              {patients.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Horário</label>
+            <input type="time" value={sessionForm.time} onChange={e=>setSessionForm(f=>({...f,time:e.target.value}))} style={inp}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={lbl}>Frequência</label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              {[["avulso","📌 Avulso","sessão única"],["semanal","🔁 Semanal","toda semana"],["quinzenal","🔁 Quinzenal","a cada 2 sem."]].map(([v,label,sub])=>(
+                <button key={v} onClick={()=>setSessionForm(f=>({...f,frequency:v}))} style={{padding:"10px 6px",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12,background:sessionForm.frequency===v?"linear-gradient(135deg,#667eea,#764ba2)":"#f0f4f8",color:sessionForm.frequency===v?"white":"#4a5568",transition:"all 0.2s",textAlign:"center"}}>
+                  <div>{label}</div>
+                  <div style={{fontSize:10,fontWeight:400,opacity:0.8,marginTop:2}}>{sub}</div>
+                </button>
+              ))}
+            </div>
+            {sessionForm.frequency!=="avulso"&&(
+              <div style={{marginTop:8,background:"#fffbeb",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#b7791f",fontWeight:600}}>
+                ⚡ Vai agendar automaticamente para todo o mês de {MONTHS_PT[parseDate(sessionModalDate||toDateStr(today)).getMonth()]}
+              </div>
+            )}
+          </div>
+          <button onClick={addSession} style={primBtn}>
+            {sessionForm.frequency==="avulso"?"Agendar":"Agendar para o mês inteiro"}
+          </button>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Novo paciente ── */}
+      {showAddPatient&&(
+        <Modal onClose={()=>setShowAddPatient(false)} title="Novo Paciente">
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Nome do paciente *</label>
+            <input value={newPatient.name} onChange={e=>setNewPatient(f=>({...f,name:e.target.value}))} style={inp} placeholder="Nome completo"/>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Nome dos pais / responsável</label>
+            <input value={newPatient.guardian} onChange={e=>setNewPatient(f=>({...f,guardian:e.target.value}))} style={inp} placeholder="Nome completo dos pais"/>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>WhatsApp dos pais</label>
+            <input value={newPatient.phone} onChange={e=>setNewPatient(f=>({...f,phone:e.target.value}))} style={inp} placeholder="(00) 00000-0000"/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={lbl}>Valor da sessão (R$)</label>
+            <input type="number" value={newPatient.sessionValue} onChange={e=>setNewPatient(f=>({...f,sessionValue:e.target.value}))} style={inp} placeholder="Ex: 150.00"/>
+          </div>
+          <button onClick={addPatient} style={primBtn}>Cadastrar Paciente</button>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Mover sessão ── */}
+      {showEditSession&&(
+        <Modal onClose={()=>setShowEditSession(null)} title="Mover Sessão">
+          <div style={{fontWeight:700,marginBottom:4}}>{patientById(showEditSession.patientId)?.name}</div>
+          <div style={{color:"#718096",fontSize:13,marginBottom:14}}>Data atual: {fmtBR(showEditSession.date)}</div>
+          <label style={lbl}>Nova data</label>
+          <input type="date" defaultValue={showEditSession.date} onChange={e=>setShowEditSession(s=>({...s,newDate:e.target.value}))} style={inp}/>
+          <button onClick={()=>moveSession(showEditSession.id,showEditSession.newDate||showEditSession.date)} style={{...primBtn,marginTop:16}}>Confirmar</button>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Relatório ── */}
+      {showReport&&reportPatient&&(
+        <Modal onClose={()=>setShowReport(false)} title="Relatório">
+          <pre style={{background:"#f7f8fa",borderRadius:10,padding:14,fontSize:12,fontFamily:"inherit",whiteSpace:"pre-wrap",lineHeight:1.6,color:"#2d3748",maxHeight:360,overflowY:"auto"}}>{generateReport(reportPatient)}</pre>
+          <button onClick={()=>{navigator.clipboard?.writeText(generateReport(reportPatient));alert("Copiado! Cole no WhatsApp ou e-mail.");}} style={{...primBtn,marginTop:14}}>📋 Copiar para WhatsApp</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+const navBtn={background:"white",border:"1px solid #e2e8f0",borderRadius:10,width:36,height:36,cursor:"pointer",fontSize:18,fontWeight:700,color:"#2d3748",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"};
+const addBtn={background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",border:"none",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"inherit"};
+const primBtn={width:"100%",background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",border:"none",borderRadius:12,padding:"13px",cursor:"pointer",fontWeight:800,fontSize:15,fontFamily:"inherit"};
+const lbl={display:"block",fontWeight:700,fontSize:12,color:"#4a5568",marginBottom:4};
+const inp={width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontFamily:"inherit",fontSize:14,outline:"none",boxSizing:"border-box",color:"#1a202c",background:"#fafafa"};
+
+function Modal({onClose,title,children}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000,padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:"white",borderRadius:20,padding:20,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <span style={{fontWeight:800,fontSize:17}}>{title}</span>
+          <button onClick={onClose} style={{background:"#f0f0f0",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:16}}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
