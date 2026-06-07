@@ -239,16 +239,52 @@ function selectDay(ds){ state.currentDate=parseDS(ds); state.agendaView="dia"; r
 
 function openSessionModal(ds){ state.sessionModalDate=ds; state.sessionForm={patientId:"",time:"08:00",frequency:"avulso"}; state.showSessionModal=true; render(); }
 function closeSessionModal(){ state.showSessionModal=false; render(); }
+function hasConflict(newSessions){
+  return newSessions.some(ns =>
+    state.sessions.some(s =>
+      s.date === ns.date &&
+      s.time === ns.time &&
+      s.patientId !== ns.patientId
+    )
+  );
+}
+
 function addSession(){
   if(!state.sessionForm.patientId) return;
-  const f=state.sessionForm;
-  if(f.frequency==="avulso"){
-    state.sessions.push({id:gid(),patientId:f.patientId,date:state.sessionModalDate,time:f.time,notes:"",status:"agendado",recurring:"avulso"});
+
+  const f = state.sessionForm;
+  let novasSessoes = [];
+
+  if(f.frequency === "avulso"){
+    novasSessoes.push({
+      id: gid(),
+      patientId: f.patientId,
+      date: state.sessionModalDate,
+      time: f.time,
+      notes: "",
+      status: "agendado",
+      recurring: "avulso"
+    });
   } else {
-    const arr=generateRecurring(f.patientId,state.sessionModalDate,f.time,f.frequency);
-    state.sessions.push(...arr);
+    novasSessoes = generateRecurring(
+      f.patientId,
+      state.sessionModalDate,
+      f.time,
+      f.frequency
+    );
   }
-  save(); closeSessionModal();
+
+  if(hasConflict(novasSessoes)){
+    const confirmar = confirm(
+      "⚠️ Já existe outro paciente agendado neste mesmo dia e horário.\n\nDeseja agendar mesmo assim?"
+    );
+
+    if(!confirmar) return;
+  }
+
+  state.sessions.push(...novasSessoes);
+  save();
+  closeSessionModal();
 }
 
 function openAddPatient(){ state.newPatient={name:"",guardian:"",phone:"",sessionValue:""}; state.showAddPatient=true; render(); }
@@ -273,9 +309,31 @@ function deleteSession(id){ state.sessions=state.sessions.filter(s=>s.id!==id); 
 function openEditSession(s){ state.showEditSession={...s,newDate:s.date}; render(); }
 function closeEditSession(){ state.showEditSession=null; render(); }
 function moveSession(){
-  const {id,newDate}=state.showEditSession;
-  state.sessions=state.sessions.map(s=>s.id===id?{...s,date:newDate}:s);
-  save(); closeEditSession();
+  const {id,newDate} = state.showEditSession;
+  const sessaoAtual = state.sessions.find(s => s.id === id);
+  if(!sessaoAtual) return;
+
+  const conflito = state.sessions.some(s =>
+    s.id !== id &&
+    s.date === newDate &&
+    s.time === sessaoAtual.time &&
+    s.patientId !== sessaoAtual.patientId
+  );
+
+  if(conflito){
+    const confirmar = confirm(
+      "⚠️ Já existe outro paciente agendado neste mesmo dia e horário.\n\nDeseja mover mesmo assim?"
+    );
+
+    if(!confirmar) return;
+  }
+
+  state.sessions = state.sessions.map(s =>
+    s.id === id ? {...s, date: newDate} : s
+  );
+
+  save();
+  closeEditSession();
 }
 
 function sendWA(sid){
