@@ -213,18 +213,34 @@ load();
 // ── RECURRING ──
 function generateRecurring(patientId, startDate, time, frequency){
   const start = parseDS(startDate);
-  const y=start.getFullYear(), m=start.getMonth();
-  const last = new Date(y,m+1,0);
-  const interval = frequency==="quinzenal"?14:7;
-  const arr=[];
-  let cur=new Date(start);
-  while(cur<=last){
-    arr.push({id:gid(),patientId,date:toDS(cur),time,notes:"",status:"agendado",recurring:frequency});
-    cur=addDays(cur,interval);
+
+  const interval = frequency === "quinzenal" ? 14 : 7;
+
+  const endDate = new Date(start);
+  endDate.setMonth(endDate.getMonth() + 12);
+
+  const arr = [];
+  let cur = new Date(start);
+
+  while(cur <= endDate){
+    arr.push({
+      id: gid(),
+      patientId,
+      date: toDS(cur),
+      time,
+      notes: "",
+      status: "agendado",
+      recurring: frequency
+    });
+
+    cur = addDays(cur, interval);
   }
+
   return arr;
 }
 
+// ── ACTIONS ──
+function setTab(t){ state.tab=t; render(); }
 // ── ACTIONS ──
 function setTab(t){ state.tab=t; render(); }
 function setView(v){ state.agendaView=v; render(); }
