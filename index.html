@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Agenda Clínica"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <title>Agenda Clínica</title>
-<link rel="manifest" href="manifest.json"/>
+<link rel="manifest" href="./manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -693,7 +693,7 @@ render();
 <!-- PWA Service Worker -->
 <script>
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js").catch(()=>{});
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
 </script>
 </body>
